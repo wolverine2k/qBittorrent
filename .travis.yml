@@ -1,0 +1,78 @@
+language:
+  - cpp
+
+env:
+  matrix:
+    # Uncomment when Travis upgraded "Ubuntu 12.04 LTS" to a newer version whose repo will have a more up-to-date libtorrent package
+    #- lt_branch=dist gui=true
+    #- lt_branch=dist gui=false
+    - lt_branch=RC_0_16 gui=true
+    - lt_branch=RC_0_16 gui=false
+    - lt_branch=RC_1_0 gui=true
+    - lt_branch=RC_1_0 gui=false
+  global:
+    - secure: "OI9CUjj4lTb0HwwIZU5PbECU3hLlAL6KC8KsbwohG8/O3j5fLcnmDsK4Ad9us5cC39sS11Jcd1kDP2qRcCuST/glVNhLkcjKkiQerOfd5nQ/qL4JYfz/1mfP5mdpz9jHKzpLUIG+TXkbSTjP6VVmsb5KPT+3pKEdRFZB+Pu9+J8="
+    - coverity_branch: coverity_scan
+
+branches:
+  except:
+    - search_encoding_windows
+    - v2_9_x
+
+notifications:
+  email:
+    on_success: change
+    on_failure: change
+
+before_install:
+  # Only allow specific build for coverity scan, others will stop
+  - if [ "$TRAVIS_BRANCH" = "$coverity_branch" ] && ! [[ "$lt_branch" == "RC_1_0" && "$gui" == "true" ]]; then exit ; fi
+
+  - shopt -s expand_aliases
+  - alias sudo="sudo "
+  # Using nprocs/2 sometimes may fail (gcc is killed by system), just use two threads
+  - alias make="colormake -j2 "
+
+  # Also setup a virtual display for after_success target when gui == true
+  - if ! $gui; then qbtconf="$qbtconf --disable-gui" ; else export "DISPLAY=:99.0" && /sbin/start-stop-daemon --start --quiet --pidfile /tmp/custom_xvfb_99.pid --make-pidfile --background --exec /usr/bin/Xvfb -- :99 -ac -screen 0 1280x1024x16 ; fi
+  - qbtconf="$qbtconf --with-qt4"
+  - ltconf=" --with-libgeoip=system"
+
+  # Options for specific branches
+  - if [[ "$lt_branch" == "RC_0_16" ]]; then qbtconf="$qbtconf --with-libtorrent-rasterbar0.16" ; fi
+
+  # Print settings
+  - echo $lt_branch
+  - echo $gui
+  - echo $qbtconf
+  - echo $ltconf
+
+  - sudo apt-get -qq update
+  # Travis may stall during heavy load if these packages are installed in one step - split the command
+  - sudo apt-get -qq install debhelper autoconf automake colormake libssl-dev libgeoip-dev
+  # Uncomment when Travis upgraded "Ubuntu 12.04 LTS" to a newer version whose repo will have a more up-to-date libtorrent package
+  #- sudo apt-get -qq install libboost-dev libboost-filesystem-dev libboost-system-dev
+  - sudo apt-get -qq install libboost-dev libboost-system-dev
+  - sudo apt-get -qq install libqt4-dev
+
+install:
+  - if ! [ "$lt_branch" == "dist" ]; then cd .. && git clone --depth 1 https://github.com/arvidn/libtorrent.git --branch $lt_branch --single-branch ; fi
+  - if ! [ "$lt_branch" == "dist" ]; then cd libtorrent && ./autotool.sh && ./configure $ltconf && sudo make install && sudo ldconfig /usr/local/lib && cd $TRAVIS_BUILD_DIR ; fi
+
+script:
+  - if [ "$TRAVIS_BRANCH" = "$coverity_branch" ]; then exit ; fi # Skip usual build when running coverity scan
+  - ./bootstrap.sh && ./configure $qbtconf
+  - sudo make install
+
+after_success:
+  - if $gui ; then qbittorrent --version ; else qbittorrent-nox --version ; fi
+
+addons:
+  coverity_scan:
+    project:
+      name: "qbittorrent/qBittorrent"
+      description: "Build submitted via Travis CI"
+    build_command_prepend: "./bootstrap.sh && ./configure $qbtconf"
+    build_command: make
+    branch_pattern: $coverity_branch
+    notification_email: sledgehammer999@qbittorrent.org

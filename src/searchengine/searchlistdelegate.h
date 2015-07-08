@@ -32,12 +32,11 @@
 #define SEARCHLISTDELEGATE_H
 
 #include <QItemDelegate>
-#include <QStyleOptionProgressBarV2>
 #include <QStyleOptionViewItemV2>
 #include <QModelIndex>
 #include <QPainter>
 #include <QProgressBar>
-#include "misc.h"
+#include "core/utils/misc.h"
 #include "searchengine.h"
 
 class SearchListDelegate: public QItemDelegate {
@@ -52,9 +51,17 @@ class SearchListDelegate: public QItemDelegate {
       painter->save();
       QStyleOptionViewItemV2 opt = QItemDelegate::setOptions(index, option);
       switch(index.column()) {
-        case SearchEngine::SIZE:
+        case SearchSortModel::SIZE:
           QItemDelegate::drawBackground(painter, opt, index);
-          QItemDelegate::drawDisplay(painter, opt, option.rect, misc::friendlyUnit(index.data().toLongLong()));
+          QItemDelegate::drawDisplay(painter, opt, option.rect, Utils::Misc::friendlyUnit(index.data().toLongLong()));
+          break;
+        case SearchSortModel::SEEDS:
+          QItemDelegate::drawBackground(painter, opt, index);
+          QItemDelegate::drawDisplay(painter, opt, option.rect, (index.data().toLongLong() >= 0) ? index.data().toString() : tr("Unknown"));
+          break;
+        case SearchSortModel::LEECHS:
+          QItemDelegate::drawBackground(painter, opt, index);
+          QItemDelegate::drawDisplay(painter, opt, option.rect, (index.data().toLongLong() >= 0) ? index.data().toString() : tr("Unknown"));
           break;
         default:
           QItemDelegate::paint(painter, option, index);
